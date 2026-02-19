@@ -58,12 +58,6 @@ int main(void)
     LOG_INF("System ready. Waiting for BLE connection...");
     printf("System ready. Waiting for BLE connection...\n");
 
-    /* Main loop - periodic processing */
-    while (1) {
-        race_manager_process();
-        k_sleep(K_MSEC(100));
-    }
-
     return 0;
 }
 

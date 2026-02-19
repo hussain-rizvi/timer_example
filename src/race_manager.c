@@ -658,31 +658,5 @@ const struct race_data *race_manager_get_data(void)
 
 void race_manager_process(void)
 {
-    /* Periodic processing:
-     * - Check for race timeout (optional)
-     * - In Mode 1, auto-finish after winner + grace period
-     */
-
-    if (race.state == RACE_STATE_RUNNING && race.race_complete) {
-        /* In Mode 1: if winner declared but not all buttons pressed,
-         * auto-finish after 30 seconds grace period */
-        if (race.mode == RACE_MODE_4_CONTESTANTS &&
-            race.winner_button != 0 &&
-            race.results_count < NUM_RACE_BUTTONS) {
-
-            uint32_t elapsed = race_timer_get_ms();
-            uint32_t since_winner = elapsed - race.winner_time_ms;
-
-            if (since_winner > 30000) {  /* 30 second grace period */
-                LOG_INF("Grace period expired, finishing race");
-                printf("TIMEOUT: Grace period expired, finishing race. Winner=Button %d (%u ms)\n",
-                       race.winner_button, race.winner_time_ms);
-                race_timer_stop();
-                buttons_disable();
-                set_state(RACE_STATE_FINISHED);
-                send_event(EVT_RACE_COMPLETE, race.winner_button, race.winner_time_ms);
-            }
-        }
-    }
 }
 
