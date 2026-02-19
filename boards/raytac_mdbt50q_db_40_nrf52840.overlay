@@ -1,0 +1,185 @@
+/*
+ * Device Tree Overlay for Race Timer Firmware
+ * Board: raytac_mdbt50q_db_40/nrf52840
+ *
+ * This overlay disables unused/conflicting board peripherals and
+ * configures the custom hardware from the Time_Clock_CTRL schematic.
+ */
+
+/ {
+    /* ── Disable default board LEDs (P0.13, P0.14, P0.15 - not used) ── */
+    leds {
+        status = "disabled";
+    };
+
+    /* ── Disable default board buttons (P0.11, P0.12, P0.24, P0.25 - conflict with SPI CS) ── */
+    buttons {
+        status = "disabled";
+    };
+
+    /* ── Custom race button inputs ── */
+    /* Active LOW with external 10k pull-ups to 3V3 on the mainboard */
+    /* OUT_SW1 = Manual Start/Stop (auxiliary), OUT_SW2-SW5 = Race Buttons 1-4 */
+    race_buttons {
+        compatible = "gpio-keys";
+        status = "okay";
+
+        button_sw1: button_sw1 {
+            gpios = <&gpio1 13 (GPIO_ACTIVE_LOW)>;
+            label = "Manual Start/Stop (J2, OUT_SW1)";
+        };
+        button_sw2: button_sw2 {
+            gpios = <&gpio1 15 (GPIO_ACTIVE_LOW)>;
+            label = "Race Button 1 (J3, OUT_SW2)";
+        };
+        button_sw3: button_sw3 {
+            gpios = <&gpio0 29 (GPIO_ACTIVE_LOW)>;
+            label = "Race Button 2 (J4, OUT_SW3)";
+        };
+        button_sw4: button_sw4 {
+            gpios = <&gpio0 31 (GPIO_ACTIVE_LOW)>;
+            label = "Race Button 3 (J5, OUT_SW4)";
+        };
+        button_sw5: button_sw5 {
+            gpios = <&gpio0 30 (GPIO_ACTIVE_LOW)>;
+            label = "Race Button 4 (J6, OUT_SW5)";
+        };
+    };
+
+    /* ── Custom button LED outputs ── */
+    /* Active HIGH → NPN transistor (DDTD113ZC) → 12V button LED */
+    /* LED1 = Manual Start/Stop LED, LED2-LED5 = Race Button 1-4 LEDs */
+    race_leds {
+        compatible = "gpio-leds";
+        status = "okay";
+
+        led_btn1: led_btn1 {
+            gpios = <&gpio1 6 GPIO_ACTIVE_HIGH>;
+            label = "Manual Start/Stop LED (J2, OUT_LED1)";
+        };
+        led_btn2: led_btn2 {
+            gpios = <&gpio1 7 GPIO_ACTIVE_HIGH>;
+            label = "Race Button 1 LED (J3, OUT_LED2)";
+        };
+        led_btn3: led_btn3 {
+            gpios = <&gpio1 5 GPIO_ACTIVE_HIGH>;
+            label = "Race Button 2 LED (J4, OUT_LED3)";
+        };
+        led_btn4: led_btn4 {
+            gpios = <&gpio1 3 GPIO_ACTIVE_HIGH>;
+            label = "Race Button 3 LED (J5, OUT_LED4)";
+        };
+        led_btn5: led_btn5 {
+            gpios = <&gpio1 1 GPIO_ACTIVE_HIGH>;
+            label = "Race Button 4 LED (J6, OUT_LED5)";
+        };
+
+        led_status: led_status {
+            gpios = <&gpio0 6 GPIO_ACTIVE_HIGH>;
+            label = "Status LED (Blue)";
+        };
+    };
+
+    /* ── Aliases ── */
+    aliases {
+        /* Override default board aliases */
+        /delete-property/ led0;
+        /delete-property/ led1;
+        /delete-property/ led2;
+        /delete-property/ sw0;
+        /delete-property/ sw1;
+        /delete-property/ sw2;
+        /delete-property/ sw3;
+        /delete-property/ mcuboot-button0;
+        /delete-property/ mcuboot-led0;
+        /delete-property/ pwm-led0;
+
+        /* Race timer aliases */
+        /* OUT_SW1 / OUT_LED1 = auxiliary (manual start/stop) = logical Button 5 */
+        /* OUT_SW2-SW5 / OUT_LED2-LED5 = race buttons 1-4 */
+        race-btn1 = &button_sw2;   /* Race Button 1 → OUT_SW2 (P1.15, J3) */
+        race-btn2 = &button_sw3;   /* Race Button 2 → OUT_SW3 (P0.29, J4) */
+        race-btn3 = &button_sw4;   /* Race Button 3 → OUT_SW4 (P0.31, J5) */
+        race-btn4 = &button_sw5;   /* Race Button 4 → OUT_SW5 (P0.30, J6) */
+        race-btn5 = &button_sw1;   /* Manual Start/Stop → OUT_SW1 (P1.13, J2) */
+        race-led1 = &led_btn2;     /* Race LED 1 → OUT_LED2 (P1.07, J3) */
+        race-led2 = &led_btn3;     /* Race LED 2 → OUT_LED3 (P1.05, J4) */
+        race-led3 = &led_btn4;     /* Race LED 3 → OUT_LED4 (P1.03, J5) */
+        race-led4 = &led_btn5;     /* Race LED 4 → OUT_LED5 (P1.01, J6) */
+        race-led5 = &led_btn1;     /* Manual Start/Stop LED → OUT_LED1 (P1.06, J2) */
+        status-led = &led_status;
+    };
+};
+
+/* ── Disable conflicting peripherals ── */
+
+/* UART0 uses P0.06 (our status LED), P0.05, P0.07, P0.08 */
+&uart0 {
+    status = "disabled";
+};
+
+/* UART1 uses P1.01 (our LED 5), P1.02 */
+&uart1 {
+    status = "disabled";
+};
+
+/* I2C1 uses P0.30/P0.31 (our buttons 4 & 5) - cannot coexist with our SPI1 */
+/* i2c1 is already disabled in the board DTS */
+
+/* PWM0 uses P0.13-P0.15 - disable to free those pins */
+&pwm0 {
+    status = "disabled";
+};
+
+/* Disable PWM LEDs */
+/ {
+    pwmleds {
+        status = "disabled";
+    };
+};
+
+/* QSPI uses P0.19-P0.23 which conflicts with our SPI SCK (P0.19) and MOSI (P0.21) */
+&qspi {
+    status = "disabled";
+};
+
+/* SPI0 shares I2C0 pins - disable if not needed */
+/* spi0 is already disabled in the board DTS (cannot coexist with i2c0) */
+
+/* SPI2 uses P0.19-P0.21 which conflicts with our custom SPI pins */
+&spi2 {
+    status = "disabled";
+};
+
+/* ── Reconfigure SPI1 for MAX7221 display ── */
+/* Override the default SPI1 pin configuration */
+&spi1 {
+    compatible = "nordic,nrf-spim";
+    status = "okay";
+    pinctrl-0 = <&spi1_custom_default>;
+    pinctrl-1 = <&spi1_custom_sleep>;
+    pinctrl-names = "default", "sleep";
+    cs-gpios = <&gpio0 25 GPIO_ACTIVE_LOW>;
+};
+
+&pinctrl {
+    /* Override SPI1 pins for MAX7221:
+     *   SCK  → P0.19 → LSF0204 → MAX7221 CLK
+     *   MOSI → P0.21 → LSF0204 → MAX7221 DIN
+     *   (MISO not connected - MAX7221 is write-only from MCU perspective)
+     */
+    spi1_custom_default: spi1_custom_default {
+        group1 {
+            psels = <NRF_PSEL(SPIM_SCK, 0, 19)>,
+                    <NRF_PSEL(SPIM_MOSI, 0, 21)>;
+        };
+    };
+    spi1_custom_sleep: spi1_custom_sleep {
+        group1 {
+            psels = <NRF_PSEL(SPIM_SCK, 0, 19)>,
+                    <NRF_PSEL(SPIM_MOSI, 0, 21)>;
+            low-power-enable;
+        };
+    };
+};
+

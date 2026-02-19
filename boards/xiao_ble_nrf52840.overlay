@@ -1,0 +1,208 @@
+/*
+ * Device Tree Overlay for Race Timer Firmware — TEST BUILD
+ * Board: xiao_ble/nrf52840 (Seeed XIAO BLE nRF52840)
+ *
+ * This overlay maps race timer hardware to the Xiao BLE header pins
+ * for bench testing with nRF Connect. No source code changes required.
+ *
+ * ┌──────────────────────────────────────────────────────────┐
+ * │  XIAO BLE nRF52840 — Test Pin Assignment                │
+ * │                                                          │
+ * │  Header   GPIO     Function            How to test           │
+ * │  ──────   ─────    ───────────         ────────────────────  │
+ * │  D0       P0.02    Manual Start/Stop   Ground with jumper    │
+ * │  D1       P0.03    Race Button 1       Ground with jumper    │
+ * │  D2       P0.28    Race Button 2       Ground with jumper    │
+ * │  D3       P0.29    Race Button 3       Ground with jumper    │
+ * │  D4       P0.04    Race Button 4       Ground with jumper    │
+ * │  D5       P0.05    LED 1 (dummy)   (output, not wired)   │
+ * │  D6       P1.11    LED 2 (dummy)   (output, not wired)   │
+ * │  D7       P1.12    LED 3 (dummy)   (output, not wired)   │
+ * │  D8       P1.13    LED 4 (dummy)   (output, not wired)   │
+ * │  D9       P1.14    LED 5 (dummy)   (output, not wired)   │
+ * │  D10      P1.15    Status LED      (output, not wired)   │
+ * │                                                          │
+ * │  SPI (dummy, no MAX7221 connected — display init will    │
+ * │       succeed but display does nothing):                 │
+ * │  (int)    P0.13    SPI1 SCK        (not on header)       │
+ * │  (int)    P0.14    SPI1 MOSI       (not on header)       │
+ * │  (int)    P0.15    SPI1 CS         (not on header)       │
+ * └──────────────────────────────────────────────────────────┘
+ *
+ * Buttons: Use internal pull-ups (no external pull-ups on Xiao).
+ *          Grounding a pin = button press (active LOW).
+ */
+
+/ {
+    /* ── Console is already set to USB CDC ACM by the board DTS ──
+     * (via cdc_acm_serial.dtsi → board_cdc_acm_uart)
+     * No need to override chosen here. */
+
+    /* ── Disable default board LEDs and PWM LEDs ── */
+    leds {
+        status = "disabled";
+    };
+
+    pwmleds {
+        status = "disabled";
+    };
+
+    /* ── Custom race button inputs ── */
+    /* Internal pull-ups enabled (Xiao has no external pull-ups) */
+    race_buttons {
+        compatible = "gpio-keys";
+        status = "okay";
+
+        button_sw1: button_sw1 {
+            gpios = <&gpio0 2 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+            label = "Manual Start/Stop (D0)";
+        };
+        button_sw2: button_sw2 {
+            gpios = <&gpio0 3 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+            label = "Race Button 1 (D1)";
+        };
+        button_sw3: button_sw3 {
+            gpios = <&gpio0 28 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+            label = "Race Button 2 (D2)";
+        };
+        button_sw4: button_sw4 {
+            gpios = <&gpio0 29 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+            label = "Race Button 3 (D3)";
+        };
+        button_sw5: button_sw5 {
+            gpios = <&gpio0 4 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+            label = "Race Button 4 (D4)";
+        };
+    };
+
+    /* ── Custom LED outputs ── */
+    /* Active HIGH — these are dummy GPIO outputs for testing.
+     * No physical LEDs are connected on Xiao, but the code
+     * will toggle them without errors. */
+    race_leds {
+        compatible = "gpio-leds";
+        status = "okay";
+
+        led_btn1: led_btn1 {
+            gpios = <&gpio0 5 GPIO_ACTIVE_HIGH>;
+            label = "Manual Start/Stop LED (D5, dummy)";
+        };
+        led_btn2: led_btn2 {
+            gpios = <&gpio1 11 GPIO_ACTIVE_HIGH>;
+            label = "Race Button 1 LED (D6, dummy)";
+        };
+        led_btn3: led_btn3 {
+            gpios = <&gpio1 12 GPIO_ACTIVE_HIGH>;
+            label = "Race Button 2 LED (D7, dummy)";
+        };
+        led_btn4: led_btn4 {
+            gpios = <&gpio1 13 GPIO_ACTIVE_HIGH>;
+            label = "Race Button 3 LED (D8, dummy)";
+        };
+        led_btn5: led_btn5 {
+            gpios = <&gpio1 14 GPIO_ACTIVE_HIGH>;
+            label = "Race Button 4 LED (D9, dummy)";
+        };
+
+        led_status: led_status {
+            gpios = <&gpio1 15 GPIO_ACTIVE_HIGH>;
+            label = "Status LED (D10, dummy)";
+        };
+    };
+
+    /* ── Aliases ── */
+    aliases {
+        /* Remove default board LED aliases that conflict */
+        /delete-property/ led0;
+        /delete-property/ led1;
+        /delete-property/ led2;
+        /delete-property/ pwm-led0;
+        /delete-property/ mcuboot-led0;
+
+        /* Race timer aliases (must match raytac overlay) */
+        /* SW1 / LED1 = auxiliary (manual start/stop) = logical Button 5 */
+        /* SW2-SW5 / LED2-LED5 = race buttons 1-4 */
+        race-btn1 = &button_sw2;   /* Race Button 1 → D1 (P0.03) */
+        race-btn2 = &button_sw3;   /* Race Button 2 → D2 (P0.28) */
+        race-btn3 = &button_sw4;   /* Race Button 3 → D3 (P0.29) */
+        race-btn4 = &button_sw5;   /* Race Button 4 → D4 (P0.04) */
+        race-btn5 = &button_sw1;   /* Manual Start/Stop → D0 (P0.02) */
+        race-led1 = &led_btn2;     /* Race LED 1 → D6 */
+        race-led2 = &led_btn3;     /* Race LED 2 → D7 */
+        race-led3 = &led_btn4;     /* Race LED 3 → D8 */
+        race-led4 = &led_btn5;     /* Race LED 4 → D9 */
+        race-led5 = &led_btn1;     /* Manual Start/Stop LED → D5 */
+        status-led = &led_status;
+    };
+};
+
+/* ── Disable conflicting peripherals ── */
+
+/* UART0 may use pins we need — disable it */
+&uart0 {
+    status = "disabled";
+};
+
+/* PWM0 — disable to free pins */
+&pwm0 {
+    status = "disabled";
+};
+
+/* Disable QSPI (used on Xiao BLE Sense for flash) */
+&qspi {
+    status = "disabled";
+};
+
+/* Disable I2C0 and I2C1 to prevent pin conflicts */
+&i2c0 {
+    status = "disabled";
+};
+
+&i2c1 {
+    status = "disabled";
+};
+
+/* Disable default SPI instances that might conflict */
+&spi0 {
+    status = "disabled";
+};
+
+&spi2 {
+    status = "disabled";
+};
+
+/* ── Configure SPI1 for MAX7221 display (dummy — no chip connected) ── */
+/* This keeps display.c compiling and running. SPI writes go to
+ * unconnected internal pins, which is harmless. display_init()
+ * will succeed, but the display simply does nothing. */
+&spi1 {
+    compatible = "nordic,nrf-spim";
+    status = "okay";
+    pinctrl-0 = <&spi1_xiao_default>;
+    pinctrl-1 = <&spi1_xiao_sleep>;
+    pinctrl-names = "default", "sleep";
+    cs-gpios = <&gpio0 15 GPIO_ACTIVE_LOW>;
+};
+
+&pinctrl {
+    spi1_xiao_default: spi1_xiao_default {
+        group1 {
+            psels = <NRF_PSEL(SPIM_SCK, 0, 13)>,
+                    <NRF_PSEL(SPIM_MOSI, 0, 14)>;
+        };
+    };
+    spi1_xiao_sleep: spi1_xiao_sleep {
+        group1 {
+            psels = <NRF_PSEL(SPIM_SCK, 0, 13)>,
+                    <NRF_PSEL(SPIM_MOSI, 0, 14)>;
+            low-power-enable;
+        };
+    };
+};
+
+/* ── USB CDC ACM ──
+ * The board DTS already defines &usbd with status "okay" and includes
+ * cdc_acm_serial.dtsi which creates board_cdc_acm_uart + sets it as
+ * the zephyr,console. No extra USB nodes needed here.
+ */
+
