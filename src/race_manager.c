@@ -111,7 +111,7 @@ int race_manager_init(void)
     /* Show idle state */
     display_dashes();
     leds_set_status(false);
-    leds_status_blink(500, 500, 0);  /* Slow blink while disconnected */
+    leds_status_blink(200, 800, 0);  /* Blink while disconnected */
 
     LOG_INF("Race manager initialized");
     printf("Race manager initialized OK\n");

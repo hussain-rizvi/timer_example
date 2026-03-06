@@ -20,7 +20,7 @@
  * │  D7       P1.12    LED 3 (dummy)   (output, not wired)   │
  * │  D8       P1.13    LED 4 (dummy)   (output, not wired)   │
  * │  D9       P1.14    LED 5 (dummy)   (output, not wired)   │
- * │  D10      P1.15    Status LED      (output, not wired)   │
+ * │  D13      P0.06    Status LED      (built-in blue LED)    │
  * │                                                          │
  * │  SPI (dummy, no MAX7221 connected — display init will    │
  * │       succeed but display does nothing):                 │
@@ -105,8 +105,8 @@
         };
 
         led_status: led_status {
-            gpios = <&gpio1 15 GPIO_ACTIVE_HIGH>;
-            label = "Status LED (D10, dummy)";
+            gpios = <&gpio0 6 GPIO_ACTIVE_LOW>;
+            label = "Status LED (D13, built-in blue)";
         };
     };
 

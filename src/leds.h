@@ -57,7 +57,7 @@ void leds_all_on(void);
  * @brief Blink the status LED (non-blocking, uses work queue).
  * @param on_ms  On duration in milliseconds.
  * @param off_ms Off duration in milliseconds.
- * @param count  Number of blinks (0 = stop blinking).
+ * @param count  Number of blinks (0 = blink forever). Use leds_set_status() to stop.
  */
 void leds_status_blink(uint32_t on_ms, uint32_t off_ms, uint32_t count);
 

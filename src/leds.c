@@ -31,11 +31,12 @@ static struct k_work_delayable blink_work;
 static uint32_t blink_on_ms;
 static uint32_t blink_off_ms;
 static uint32_t blink_remaining;
+static bool blink_infinite;
 static bool blink_state;
 
 static void blink_work_handler(struct k_work *work)
 {
-    if (blink_remaining == 0) {
+    if (!blink_infinite && blink_remaining == 0) {
         gpio_pin_set_dt(&status_led_spec, 0);
         return;
     }
@@ -43,7 +44,7 @@ static void blink_work_handler(struct k_work *work)
     blink_state = !blink_state;
     gpio_pin_set_dt(&status_led_spec, blink_state ? 1 : 0);
 
-    if (!blink_state) {
+    if (!blink_infinite && !blink_state) {
         blink_remaining--;
     }
 
@@ -121,13 +122,9 @@ void leds_status_blink(uint32_t on_ms, uint32_t off_ms, uint32_t count)
 {
     k_work_cancel_delayable(&blink_work);
 
-    if (count == 0) {
-        gpio_pin_set_dt(&status_led_spec, 0);
-        return;
-    }
-
     blink_on_ms = on_ms;
     blink_off_ms = off_ms;
+    blink_infinite = (count == 0);
     blink_remaining = count;
     blink_state = false;
 
