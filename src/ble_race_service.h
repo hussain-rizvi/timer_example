@@ -35,6 +35,11 @@ extern "C" {
 #define EVT_PONG         0x14
 #define EVT_ERROR        0x1F
 
+/* ── Error Reason Codes (sent in button_index field of EVT_ERROR) ── */
+#define ERR_REASON_UNKNOWN_CMD       0x01  /* Unrecognised command type */
+#define ERR_REASON_INVALID_STATE     0x02  /* Command not allowed in current state */
+#define ERR_REASON_MODE_NOT_ALLOWED  0x03  /* Cannot set mode in current state */
+
 /* ── Race Modes ── */
 #define RACE_MODE_4_CONTESTANTS  0x01
 #define RACE_MODE_1_CONTESTANT   0x02

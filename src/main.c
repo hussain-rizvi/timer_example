@@ -36,11 +36,6 @@ int main(void)
     /* Brief delay to allow USB CDC ACM to enumerate (Xiao BLE) */
     k_msleep(1000);
 
-    LOG_INF("======================================");
-    LOG_INF("  Race Timer Firmware v1.0.0");
-    LOG_INF("  nRF52840 / MDBT50Q-P1M");
-    LOG_INF("======================================");
-
     printf("\n");
     printf("======================================\n");
     printf("  Race Timer Firmware v1.0.0\n");

@@ -23,7 +23,7 @@
 LOG_MODULE_REGISTER(buttons, LOG_LEVEL_INF);
 
 /* Debounce time in milliseconds */
-#define DEBOUNCE_MS 50
+#define DEBOUNCE_MS 200
 
 /* Device tree node references for buttons */
 #define BTN_NODE(n) DT_ALIAS(race_btn##n)

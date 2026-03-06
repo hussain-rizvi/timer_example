@@ -240,6 +240,7 @@ static void on_ble_command(const struct race_cmd_packet *cmd)
         } else {
             LOG_WRN("Cannot set mode in state %d", race.state);
             printf("WARNING: Cannot set mode in state %s\n", state_name(race.state));
+            send_event(EVT_ERROR, ERR_REASON_MODE_NOT_ALLOWED, 0);
         }
         break;
 
@@ -256,7 +257,7 @@ static void on_ble_command(const struct race_cmd_packet *cmd)
     default:
         LOG_WRN("Unknown command: 0x%02X", cmd->cmd_type);
         printf("WARNING: Unknown command 0x%02X\n", cmd->cmd_type);
-        send_event(EVT_ERROR, 0, 0);
+        send_event(EVT_ERROR, ERR_REASON_UNKNOWN_CMD, 0);
         break;
     }
 }
@@ -299,7 +300,7 @@ static void handle_start_race(void)
 {
     if (race.state != RACE_STATE_CONFIGURED) {
         LOG_WRN("Cannot start race in state %d", race.state);
-        send_event(EVT_ERROR, 0, 0);
+        send_event(EVT_ERROR, ERR_REASON_INVALID_STATE, 0);
         return;
     }
 
@@ -570,6 +571,7 @@ static void handle_button_during_race(uint8_t button_index)
         if (race.results_count >= NUM_RACE_BUTTONS) {
             race_timer_stop();
             buttons_disable();
+            buttons_enable();
             set_state(RACE_STATE_FINISHED);
             send_event(EVT_RACE_COMPLETE, race.winner_button, race.winner_time_ms);
             printf("RACE COMPLETE: All buttons pressed. Winner=Button %d (%u ms)\n",
@@ -586,6 +588,7 @@ static void handle_button_during_race(uint8_t button_index)
 
             race_timer_stop();
             buttons_disable();
+            buttons_enable();
             set_state(RACE_STATE_FINISHED);
             send_event(EVT_RACE_COMPLETE, 0, elapsed);
             LOG_INF("All segments complete! Total time: %u ms", elapsed);

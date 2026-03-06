@@ -200,9 +200,7 @@
     };
 };
 
-/* ── USB CDC ACM ──
- * The board DTS already defines &usbd with status "okay" and includes
- * cdc_acm_serial.dtsi which creates board_cdc_acm_uart + sets it as
- * the zephyr,console. No extra USB nodes needed here.
+/* ── USB CDC ACM disabled via Kconfig (BOARD_SERIAL_BACKEND_CDC_ACM=n) ──
+ * Using J-Link RTT for console instead.
  */
 
