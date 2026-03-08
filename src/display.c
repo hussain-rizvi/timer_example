@@ -217,10 +217,10 @@ void display_time(uint32_t time_ms, bool show_minutes)
         // }
 
         /* Only write digits that changed (cache in max7221_write_digit) */
-        max7221_write(MAX7221_REG_DIGIT3, SEGMENT_FONT[minutes / 10]);
+        max7221_write(MAX7221_REG_DIGIT3, SEGMENT_FONT[minutes / 10]| SEG_DP);
         max7221_write(MAX7221_REG_DIGIT2, SEGMENT_FONT[minutes % 10] | SEG_DP);
-        max7221_write(MAX7221_REG_DIGIT1, SEGMENT_FONT[seconds / 10]);
-        max7221_write(MAX7221_REG_DIGIT0, SEGMENT_FONT[seconds % 10]);
+        max7221_write(MAX7221_REG_DIGIT1, SEGMENT_FONT[seconds / 10]| SEG_DP);
+        max7221_write(MAX7221_REG_DIGIT0, SEGMENT_FONT[seconds % 10]| SEG_DP);
 
         for (int i = 4; i < 8; i++) {
 
