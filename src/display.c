@@ -207,16 +207,7 @@ void display_time(uint32_t time_ms, bool show_minutes)
         if (minutes > 99) {
             minutes = 99;
         }
-        // if (minutes == 0){
-        //      max7221_write(MAX7221_REG_DIGIT0 ,SEG_BLANK );
-        //       max7221_write(MAX7221_REG_DIGIT1 , SEG_BLANK );        
-        // }
-        // else{
-        //         max7221_write(MAX7221_REG_DIGIT0 , SEGMENT_FONT[minutes / 10] );
-        //         max7221_write(MAX7221_REG_DIGIT1 , SEGMENT_FONT[minutes % 10] | SEG_DP);        
-        // }
 
-        /* Only write digits that changed (cache in max7221_write_digit) */
         max7221_write(MAX7221_REG_DIGIT3, SEGMENT_FONT[minutes / 10]| SEG_DP);
         max7221_write(MAX7221_REG_DIGIT2, SEGMENT_FONT[minutes % 10] | SEG_DP);
         max7221_write(MAX7221_REG_DIGIT1, SEGMENT_FONT[seconds / 10]| SEG_DP);
@@ -228,18 +219,7 @@ void display_time(uint32_t time_ms, bool show_minutes)
         }
 
 
-        // max7221_write(MAX7221_REG_DIGIT4 , SEGMENT_FONT[seconds / 10]);
-        // max7221_write(MAX7221_REG_DIGIT5 , SEGMENT_FONT[seconds / 10] );
-        // max7221_write(MAX7221_REG_DIGIT6 , SEGMENT_FONT[seconds / 10] );
-        // max7221_write(MAX7221_REG_DIGIT7 , SEGMENT_FONT[seconds / 10] );
 
-        // max7221_write(MAX7221_REG_SHUTDOWN, 0x00);
-        // max7221_write(MAX7221_REG_DIGIT3 , SEGMENT_FONT[1]);
-        // max7221_write(MAX7221_REG_DIGIT1 ,SEGMENT_FONT[2]);
-        // max7221_write(MAX7221_REG_DIGIT2 , SEGMENT_FONT[3]);
-        // max7221_write(MAX7221_REG_DIGIT0 ,SEGMENT_FONT[seconds % 10]);
-        // max7221_write(MAX7221_REG_DIGIT4 , SEGMENT_FONT[seconds % 10]);
-        // max7221_write(MAX7221_REG_SHUTDOWN, 0x01);
 
     } else {
         /* SS.mm format (seconds and hundredths) */
@@ -247,10 +227,10 @@ void display_time(uint32_t time_ms, bool show_minutes)
         uint8_t seconds = (total_centiseconds / 100) % 100;
         uint8_t centiseconds = total_centiseconds % 100;
 
-        max7221_write_digit(0, SEGMENT_FONT[seconds / 10]);
-        max7221_write_digit(1, SEGMENT_FONT[seconds % 10] | SEG_DP);
-        max7221_write_digit(2, SEGMENT_FONT[centiseconds / 10]);
-        max7221_write_digit(3, SEGMENT_FONT[centiseconds % 10]);
+        max7221_write_digit(3, SEGMENT_FONT[seconds / 10]| SEG_DP);
+        max7221_write_digit(2, SEGMENT_FONT[seconds % 10] | SEG_DP);
+        max7221_write_digit(1, SEGMENT_FONT[centiseconds / 10]| SEG_DP);
+        max7221_write_digit(0, SEGMENT_FONT[centiseconds % 10]| SEG_DP);
     }
 }
 
