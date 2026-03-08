@@ -41,47 +41,12 @@ int display_init(void);
 void display_time(uint32_t time_ms, bool show_minutes);
 
 /**
- * @brief Display a raw 4-digit number.
- *
- * @param value Number to display (0-9999).
- * @param decimal_pos Position of decimal point (0-3, or -1 for none).
- */
-void display_number(uint16_t value, int8_t decimal_pos);
-
-/**
- * @brief Display raw segment data on a specific digit.
- *
- * @param digit Digit position (0-3, left to right).
- * @param segments Segment bitmask (bit 0=A, ..., bit 6=G, bit 7=DP).
- */
-void display_raw(uint8_t digit, uint8_t segments);
-
-/**
  * @brief Clear the display (all segments off).
  */
 void display_clear(void);
 
 /**
- * @brief Set display brightness.
- *
- * @param intensity Brightness level (0-15).
- */
-void display_set_brightness(uint8_t intensity);
-
-/**
- * @brief Turn display on or off.
- *
- * @param on true = display on, false = shutdown mode.
- */
-void display_power(bool on);
-
-/**
- * @brief Display dashes (----) to indicate ready/idle state.
- */
-void display_dashes(void);
-
-/**
- * @brief Display "donE" or similar finish indicator.
+ * @brief Display "donE" finish indicator.
  */
 void display_done(void);
 

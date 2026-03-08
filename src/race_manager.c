@@ -24,7 +24,11 @@ static struct race_data race;
 
 /* ── Display Update Timer ── */
 static struct k_work_delayable display_update_work;
-#define DISPLAY_UPDATE_INTERVAL_MS 50  /* Update display every 50ms during race */
+#define DISPLAY_UPDATE_INTERVAL_MS 1  /* Update display every 1ms during race */
+
+/* ── Error blink done: transition to DISCONNECTED after 10 rapid blinks (100+100 ms × 10) ── */
+static struct k_work_delayable error_blink_done_work;
+#define ERROR_BLINK_DURATION_MS  (10 * (100 + 100))
 
 /* ── Button 5 (auxiliary) ── */
 #define BUTTON_AUX  5  /* Button 5 = manual start/stop */
@@ -41,6 +45,7 @@ static void handle_button5_press(void);
 static void handle_button_during_race(uint8_t button_index);
 static void send_event(uint8_t event_type, uint8_t button_index, uint32_t elapsed_ms);
 static void display_update_handler(struct k_work *work);
+static void error_blink_done_handler(struct k_work *work);
 static void update_leds_for_state(void);
 
 /* ── BLE Callbacks ── */
@@ -101,6 +106,7 @@ int race_manager_init(void)
 
     /* Initialize display update work */
     k_work_init_delayable(&display_update_work, display_update_handler);
+    k_work_init_delayable(&error_blink_done_work, error_blink_done_handler);
 
     /* Enable button 5 (start/stop) at all times.
      * Buttons 1-4 are enabled/disabled per race state by
@@ -109,7 +115,8 @@ int race_manager_init(void)
     buttons_enable();
 
     /* Show idle state */
-    display_dashes();
+    // display_dashes();
+    display_time(0, true);
     leds_set_status(false);
     leds_status_blink(200, 800, 0);  /* Blink while disconnected */
 
@@ -142,6 +149,11 @@ static void set_state(race_state_t new_state)
         return;
     }
 
+    /* When leaving ERROR, cancel the auto-transition to DISCONNECTED */
+    if (race.state == RACE_STATE_ERROR) {
+        k_work_cancel_delayable(&error_blink_done_work);
+    }
+
     LOG_INF("State: %d → %d", race.state, new_state);
     printf("STATE: %s -> %s\n", state_name(race.state), state_name(new_state));
     race.state = new_state;
@@ -155,17 +167,21 @@ static void set_state(race_state_t new_state)
 
 static void update_leds_for_state(void)
 {
+    leds_stop_blink_button();
+
     switch (race.state) {
     case RACE_STATE_DISCONNECTED:
         leds_all_off();
         leds_status_blink(200, 800, 0);  /* Fast-blink status while disconnected */
-        display_dashes();
+        // display_dashes();
+        display_time(0, true);
         break;
 
     case RACE_STATE_IDLE:
         leds_all_off();
         leds_set_status(true);  /* Solid status = connected */
-        display_dashes();
+        // display_dashes();
+        display_time(0, true);
         break;
 
     case RACE_STATE_CONFIGURED:
@@ -190,10 +206,9 @@ static void update_leds_for_state(void)
         break;
 
     case RACE_STATE_FINISHED:
-        /* Turn off unfinished lane LEDs, keep winner LED on */
         leds_all_off();
         if (race.winner_button > 0 && race.winner_button <= NUM_BUTTON_LEDS) {
-            leds_set_button(race.winner_button, true);
+            leds_blink_button(race.winner_button, 300, 300);
         }
         leds_set_status(true);
         /* Stop display updates - show final time */
@@ -208,7 +223,9 @@ static void update_leds_for_state(void)
     case RACE_STATE_ERROR:
         leds_all_off();
         leds_status_blink(100, 100, 10);  /* Rapid blink on error */
-        display_dashes();
+        // display_dashes();
+        display_time(0, true);
+        k_work_reschedule(&error_blink_done_work, K_MSEC(ERROR_BLINK_DURATION_MS));
         break;
     }
 }
@@ -339,6 +356,8 @@ static void handle_start_race(void)
 
 static void handle_new_race(void)
 {
+    race_state_t prev_state = race.state;
+
     LOG_INF("New race / reset");
     printf("RESET: New race / reset\n");
 
@@ -362,8 +381,10 @@ static void handle_new_race(void)
     /* Re-enable all button interrupts so Button 5 stays active */
     buttons_enable();
 
-    /* Return to idle state */
-    if (ble_race_service_is_connected()) {
+    /* After ERROR, return to init state (DISCONNECTED); otherwise idle or disconnected by connection */
+    if (prev_state == RACE_STATE_ERROR) {
+        set_state(RACE_STATE_DISCONNECTED);
+    } else if (ble_race_service_is_connected()) {
         set_state(RACE_STATE_IDLE);
     } else {
         set_state(RACE_STATE_DISCONNECTED);
@@ -504,8 +525,7 @@ static void handle_stop_race(void)
         send_event(EVT_RACE_COMPLETE, 0, elapsed);
     }
 
-    /* Flash button 5 LED briefly as feedback */
-    leds_flash_button(BUTTON_AUX);
+    /* Winner LED blink is handled by set_state(FINISHED) → update_leds_for_state() */
 
     LOG_INF("Race manually stopped at %u ms", elapsed);
     if (race.winner_button > 0) {
@@ -632,6 +652,13 @@ static void send_event(uint8_t event_type, uint8_t button_index, uint32_t elapse
 }
 
 /* ── Display Update ── */
+
+static void error_blink_done_handler(struct k_work *work)
+{
+    if (race.state == RACE_STATE_ERROR) {
+        set_state(RACE_STATE_DISCONNECTED);
+    }
+}
 
 static void display_update_handler(struct k_work *work)
 {

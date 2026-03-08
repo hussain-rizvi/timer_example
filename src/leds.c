@@ -52,6 +52,27 @@ static void blink_work_handler(struct k_work *work)
     k_work_reschedule(&blink_work, K_MSEC(delay));
 }
 
+/* Button LED blink work */
+static struct k_work_delayable btn_blink_work;
+static uint8_t btn_blink_index;
+static uint32_t btn_blink_on_ms;
+static uint32_t btn_blink_off_ms;
+static bool btn_blink_state;
+
+static void btn_blink_work_handler(struct k_work *work)
+{
+    if (btn_blink_index < 1 || btn_blink_index > NUM_BUTTON_LEDS) {
+        return;
+    }
+
+    btn_blink_state = !btn_blink_state;
+    gpio_pin_set_dt(&button_led_specs[btn_blink_index - 1],
+                    btn_blink_state ? 1 : 0);
+
+    uint32_t delay = btn_blink_state ? btn_blink_on_ms : btn_blink_off_ms;
+    k_work_reschedule(&btn_blink_work, K_MSEC(delay));
+}
+
 int leds_init(void)
 {
     int err;
@@ -84,6 +105,7 @@ int leds_init(void)
 
     /* Initialize blink work */
     k_work_init_delayable(&blink_work, blink_work_handler);
+    k_work_init_delayable(&btn_blink_work, btn_blink_work_handler);
 
     LOG_INF("LEDs initialized");
     return 0;
@@ -131,14 +153,28 @@ void leds_status_blink(uint32_t on_ms, uint32_t off_ms, uint32_t count)
     k_work_reschedule(&blink_work, K_NO_WAIT);
 }
 
-void leds_flash_button(uint8_t led_index)
+void leds_blink_button(uint8_t led_index, uint32_t on_ms, uint32_t off_ms)
 {
     if (led_index < 1 || led_index > NUM_BUTTON_LEDS) {
         return;
     }
-    /* Quick flash: on then off after 200ms */
-    gpio_pin_set_dt(&button_led_specs[led_index - 1], 1);
-    /* Note: This is a simple blocking flash. For production,
-     * use a work queue with delayed off. */
+
+    k_work_cancel_delayable(&btn_blink_work);
+
+    btn_blink_index = led_index;
+    btn_blink_on_ms = on_ms;
+    btn_blink_off_ms = off_ms;
+    btn_blink_state = false;
+
+    k_work_reschedule(&btn_blink_work, K_NO_WAIT);
+}
+
+void leds_stop_blink_button(void)
+{
+    k_work_cancel_delayable(&btn_blink_work);
+    if (btn_blink_index >= 1 && btn_blink_index <= NUM_BUTTON_LEDS) {
+        gpio_pin_set_dt(&button_led_specs[btn_blink_index - 1], 0);
+    }
+    btn_blink_index = 0;
 }
 

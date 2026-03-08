@@ -62,10 +62,17 @@ void leds_all_on(void);
 void leds_status_blink(uint32_t on_ms, uint32_t off_ms, uint32_t count);
 
 /**
- * @brief Flash a specific button LED briefly to indicate event.
+ * @brief Blink a specific button LED continuously (non-blocking, work queue).
  * @param led_index LED number (1-5).
+ * @param on_ms  On duration in milliseconds.
+ * @param off_ms Off duration in milliseconds.
  */
-void leds_flash_button(uint8_t led_index);
+void leds_blink_button(uint8_t led_index, uint32_t on_ms, uint32_t off_ms);
+
+/**
+ * @brief Stop any ongoing button LED blink and turn the LED off.
+ */
+void leds_stop_blink_button(void);
 
 #ifdef __cplusplus
 }

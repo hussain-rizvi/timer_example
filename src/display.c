@@ -19,6 +19,7 @@
  *   0x0F: Display Test
  */
 
+#include <string.h>
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
 #include <zephyr/drivers/spi.h>
@@ -45,14 +46,34 @@ LOG_MODULE_REGISTER(display, LOG_LEVEL_INF);
 #define MAX7221_REG_SHUTDOWN    0x0C
 #define MAX7221_REG_DISPLAY_TEST 0x0F
 
-/* BCD decode values for MAX7221 */
-#define CHAR_DASH  0x0A  /* Displays '-' in BCD mode */
-#define CHAR_E     0x0B  /* Displays 'E' in BCD mode */
-#define CHAR_H     0x0C  /* Displays 'H' in BCD mode */
-#define CHAR_L     0x0D  /* Displays 'L' in BCD mode */
-#define CHAR_P     0x0E  /* Displays 'P' in BCD mode */
-#define CHAR_BLANK 0x0F  /* Blank in BCD mode */
-#define CHAR_DP    0x80  /* Decimal point bit */
+/*
+ * Raw segment font (no-decode mode).
+ * Bit mapping: DP G F E D C B A  (bit 7 down to bit 0)
+ *
+ *        A
+ *       ---
+ *   F |     | B
+ *       -G-
+ *   E |     | C
+ *       ---
+ *        D    .DP
+ */
+static const uint8_t SEGMENT_FONT[] = {
+    0x7E,  /* 0: A B C D E F     */
+    0x30,  /* 1: B C             */
+    0x6D,  /* 2: A B D E G       */
+    0x79,  /* 3: A B C D G       */
+    0x33,  /* 4: B C F G         */
+    0x5B,  /* 5: A C D F G       */
+    0x5F,  /* 6: A C D E F G     */
+    0x70,  /* 7: A B C           */
+    0x7F,  /* 8: A B C D E F G   */
+    0x7B,  /* 9: A B C D F G     */
+};
+
+#define SEG_E      0x4F  /* A D E F G           */
+#define SEG_BLANK  0x00  /* all segments off    */
+#define SEG_DP     0x80  /* decimal point bit   */
 
 /* SPI bus device (no child node - raw SPI access to MAX7221) */
 static const struct device *spi_bus;
@@ -61,9 +82,31 @@ static struct spi_cs_control spi_cs;
 
 static bool display_initialized;
 
+/* Cache of last-written digit values to avoid redundant SPI writes */
+static uint8_t digit_cache[8];
+static bool digit_cache_valid[8];
+
 /**
  * @brief Write a register value to the MAX7221.
  */
+static int max7221_write(uint8_t reg, uint8_t data);
+
+/**
+ * @brief Write a digit only if its value has changed since the last write.
+ */
+static void max7221_write_digit(uint8_t digit_index, uint8_t data)
+{
+    if (digit_index < 8 && digit_cache_valid[digit_index] &&
+        digit_cache[digit_index] == data) {
+        return;
+    }
+    max7221_write(MAX7221_REG_DIGIT0 + digit_index, data);
+    if (digit_index < 8) {
+        digit_cache[digit_index] = data;
+        digit_cache_valid[digit_index] = true;
+    }
+}
+
 static int max7221_write(uint8_t reg, uint8_t data)
 {
     uint8_t tx_buf[2] = { reg, data };
@@ -95,7 +138,7 @@ int display_init(void)
         DT_NODELABEL(spi1), cs_gpios, 0);
     spi_cs.delay = 0;
 
-    /* Configure SPI settings: Mode 0, 8-bit, MSB first, 1MHz */
+    /* Configure SPI: Mode 0, 8-bit, MSB first. 1 MHz to reduce edges/noise (helps display ghosting). */
     spi_cfg.frequency = 1000000U;
     spi_cfg.operation = SPI_OP_MODE_MASTER | SPI_WORD_SET(8) | SPI_TRANSFER_MSB;
     spi_cfg.slave = 0;
@@ -109,21 +152,21 @@ int display_init(void)
     }
 
     /* Set scan limit to 4 digits (0-3) */
-    err = max7221_write(MAX7221_REG_SCAN_LIMIT, 0x03);
+    err = max7221_write(MAX7221_REG_SCAN_LIMIT, 0x04);
     if (err) {
         LOG_ERR("Failed to set scan limit (err %d)", err);
         return err;
     }
 
-    /* Enable BCD decode for digits 0-3 */
-    err = max7221_write(MAX7221_REG_DECODE_MODE, 0x0F);
+    /* No decode — raw segment mode for all digits */
+    err = max7221_write(MAX7221_REG_DECODE_MODE, 0x00);
     if (err) {
         LOG_ERR("Failed to set decode mode (err %d)", err);
         return err;
     }
 
     /* Set medium brightness */
-    err = max7221_write(MAX7221_REG_INTENSITY, 0x08);
+    err = max7221_write(MAX7221_REG_INTENSITY, 0x00);
     if (err) {
         LOG_ERR("Failed to set intensity (err %d)", err);
         return err;
@@ -136,13 +179,9 @@ int display_init(void)
         return err;
     }
 
-    /* Clear all digits */
-    for (int i = 0; i < DISPLAY_NUM_DIGITS; i++) {
-        max7221_write(MAX7221_REG_DIGIT0 + i, CHAR_BLANK);
-    }
-    /* Also blank unused digits 4-7 */
-    for (int i = 4; i < 8; i++) {
-        max7221_write(MAX7221_REG_DIGIT0 + i, CHAR_BLANK);
+    /* Clear all digits (0x00 = all segments off in raw mode) */
+    for (int i = 0; i < 8; i++) {
+        max7221_write(MAX7221_REG_DIGIT0 + i, SEG_BLANK);
     }
 
     display_initialized = true;
@@ -157,6 +196,9 @@ void display_time(uint32_t time_ms, bool show_minutes)
     }
 
     if (show_minutes) {
+
+
+
         /* MM:SS format */
         uint32_t total_seconds = time_ms / 1000;
         uint32_t minutes = total_seconds / 60;
@@ -165,67 +207,51 @@ void display_time(uint32_t time_ms, bool show_minutes)
         if (minutes > 99) {
             minutes = 99;
         }
+        // if (minutes == 0){
+        //      max7221_write(MAX7221_REG_DIGIT0 ,SEG_BLANK );
+        //       max7221_write(MAX7221_REG_DIGIT1 , SEG_BLANK );        
+        // }
+        // else{
+        //         max7221_write(MAX7221_REG_DIGIT0 , SEGMENT_FONT[minutes / 10] );
+        //         max7221_write(MAX7221_REG_DIGIT1 , SEGMENT_FONT[minutes % 10] | SEG_DP);        
+        // }
 
-        /* Digit 0 (leftmost): tens of minutes */
-        max7221_write(MAX7221_REG_DIGIT0, (minutes / 10) & 0x0F);
-        /* Digit 1: ones of minutes + decimal point (acts as colon) */
-        max7221_write(MAX7221_REG_DIGIT1, ((minutes % 10) & 0x0F) | CHAR_DP);
-        /* Digit 2: tens of seconds */
-        max7221_write(MAX7221_REG_DIGIT2, (seconds / 10) & 0x0F);
-        /* Digit 3 (rightmost): ones of seconds */
-        max7221_write(MAX7221_REG_DIGIT3, (seconds % 10) & 0x0F);
+        /* Only write digits that changed (cache in max7221_write_digit) */
+        max7221_write(MAX7221_REG_DIGIT3, SEGMENT_FONT[minutes / 10]);
+        max7221_write(MAX7221_REG_DIGIT2, SEGMENT_FONT[minutes % 10] | SEG_DP);
+        max7221_write(MAX7221_REG_DIGIT1, SEGMENT_FONT[seconds / 10]);
+        max7221_write(MAX7221_REG_DIGIT0, SEGMENT_FONT[seconds % 10]);
+
+        for (int i = 4; i < 8; i++) {
+
+            max7221_write(MAX7221_REG_DIGIT0 + i, SEG_BLANK);
+        }
+
+
+        // max7221_write(MAX7221_REG_DIGIT4 , SEGMENT_FONT[seconds / 10]);
+        // max7221_write(MAX7221_REG_DIGIT5 , SEGMENT_FONT[seconds / 10] );
+        // max7221_write(MAX7221_REG_DIGIT6 , SEGMENT_FONT[seconds / 10] );
+        // max7221_write(MAX7221_REG_DIGIT7 , SEGMENT_FONT[seconds / 10] );
+
+        // max7221_write(MAX7221_REG_SHUTDOWN, 0x00);
+        // max7221_write(MAX7221_REG_DIGIT3 , SEGMENT_FONT[1]);
+        // max7221_write(MAX7221_REG_DIGIT1 ,SEGMENT_FONT[2]);
+        // max7221_write(MAX7221_REG_DIGIT2 , SEGMENT_FONT[3]);
+        // max7221_write(MAX7221_REG_DIGIT0 ,SEGMENT_FONT[seconds % 10]);
+        // max7221_write(MAX7221_REG_DIGIT4 , SEGMENT_FONT[seconds % 10]);
+        // max7221_write(MAX7221_REG_SHUTDOWN, 0x01);
+
     } else {
         /* SS.mm format (seconds and hundredths) */
         uint32_t total_centiseconds = time_ms / 10;
         uint8_t seconds = (total_centiseconds / 100) % 100;
         uint8_t centiseconds = total_centiseconds % 100;
 
-        /* Digit 0: tens of seconds */
-        max7221_write(MAX7221_REG_DIGIT0, (seconds / 10) & 0x0F);
-        /* Digit 1: ones of seconds + decimal point */
-        max7221_write(MAX7221_REG_DIGIT1, ((seconds % 10) & 0x0F) | CHAR_DP);
-        /* Digit 2: tens of centiseconds */
-        max7221_write(MAX7221_REG_DIGIT2, (centiseconds / 10) & 0x0F);
-        /* Digit 3: ones of centiseconds */
-        max7221_write(MAX7221_REG_DIGIT3, (centiseconds % 10) & 0x0F);
+        max7221_write_digit(0, SEGMENT_FONT[seconds / 10]);
+        max7221_write_digit(1, SEGMENT_FONT[seconds % 10] | SEG_DP);
+        max7221_write_digit(2, SEGMENT_FONT[centiseconds / 10]);
+        max7221_write_digit(3, SEGMENT_FONT[centiseconds % 10]);
     }
-}
-
-void display_number(uint16_t value, int8_t decimal_pos)
-{
-    if (!display_initialized) {
-        return;
-    }
-
-    if (value > 9999) {
-        value = 9999;
-    }
-
-    uint8_t digits[4];
-    digits[0] = (value / 1000) % 10;
-    digits[1] = (value / 100) % 10;
-    digits[2] = (value / 10) % 10;
-    digits[3] = value % 10;
-
-    for (int i = 0; i < DISPLAY_NUM_DIGITS; i++) {
-        uint8_t data = digits[i] & 0x0F;
-        if (decimal_pos == i) {
-            data |= CHAR_DP;
-        }
-        max7221_write(MAX7221_REG_DIGIT0 + i, data);
-    }
-}
-
-void display_raw(uint8_t digit, uint8_t segments)
-{
-    if (!display_initialized || digit >= DISPLAY_NUM_DIGITS) {
-        return;
-    }
-
-    /* For raw segments, we need to disable BCD decode for this digit
-     * This is a simplified version - for mixed raw/BCD, decode mode
-     * register would need per-digit control. */
-    max7221_write(MAX7221_REG_DIGIT0 + digit, segments);
 }
 
 void display_clear(void)
@@ -235,41 +261,9 @@ void display_clear(void)
     }
 
     for (int i = 0; i < DISPLAY_NUM_DIGITS; i++) {
-        max7221_write(MAX7221_REG_DIGIT0 + i, CHAR_BLANK);
+        max7221_write(MAX7221_REG_DIGIT0 + i, SEG_BLANK);
     }
-}
-
-void display_set_brightness(uint8_t intensity)
-{
-    if (!display_initialized) {
-        return;
-    }
-
-    if (intensity > 15) {
-        intensity = 15;
-    }
-
-    max7221_write(MAX7221_REG_INTENSITY, intensity);
-}
-
-void display_power(bool on)
-{
-    if (!display_initialized) {
-        return;
-    }
-
-    max7221_write(MAX7221_REG_SHUTDOWN, on ? 0x01 : 0x00);
-}
-
-void display_dashes(void)
-{
-    if (!display_initialized) {
-        return;
-    }
-
-    for (int i = 0; i < DISPLAY_NUM_DIGITS; i++) {
-        max7221_write(MAX7221_REG_DIGIT0 + i, CHAR_DASH);
-    }
+    memset(digit_cache_valid, 0, sizeof(digit_cache_valid));
 }
 
 void display_done(void)
@@ -278,17 +272,16 @@ void display_done(void)
         return;
     }
 
-    /* Display "donE" using BCD special chars where possible
-     * d=0x0D? Actually BCD doesn't have 'd'. We'll display "----" instead
-     * or use a numeric indicator. For simplicity, display "0000" meaning done,
-     * or we can show the winning time instead. */
-
-    /* Show "End" approximation: E n d blank -> Using available chars: */
-    /* MAX7221 BCD: 0-9, -, E, H, L, P, blank */
-    /* Best we can do: "E--E" or show final time */
-    max7221_write(MAX7221_REG_DIGIT0, CHAR_BLANK);
-    max7221_write(MAX7221_REG_DIGIT1, CHAR_E);
-    max7221_write(MAX7221_REG_DIGIT2, CHAR_DASH);
-    max7221_write(MAX7221_REG_DIGIT3, CHAR_DASH);
+    /* "donE" — raw mode lets us define any character:
+     *   d = segments B C D E G  = 0x3D
+     *   o = segments C D E G    = 0x1D
+     *   n = segments C E G      = 0x15
+     *   E = segments A D E F G  = SEG_E
+     */
+    max7221_write(MAX7221_REG_DIGIT0, 0x3D);    /* d */
+    max7221_write(MAX7221_REG_DIGIT1, 0x1D);    /* o */
+    max7221_write(MAX7221_REG_DIGIT2, 0x15);    /* n */
+    max7221_write(MAX7221_REG_DIGIT3, SEG_E);   /* E */
+    memset(digit_cache_valid, 0, sizeof(digit_cache_valid));
 }
 
