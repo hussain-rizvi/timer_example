@@ -202,17 +202,14 @@ static void update_leds_for_state(void)
 
     case RACE_STATE_FINISHED:
         leds_all_off();
-        if (race.winner_button > 0 && race.winner_button <= NUM_BUTTON_LEDS) {
+        if (race.mode == RACE_MODE_1_CONTESTANT) {
+            leds_blink_all_buttons(300, 300);
+        } else if (race.winner_button > 0 && race.winner_button <= NUM_BUTTON_LEDS) {
             leds_blink_button(race.winner_button, 300, 300);
         }
         leds_set_status(true);
-        /* Stop display updates - show final time */
         k_work_cancel_delayable(&display_update_work);
-        if (race.winner_time_ms > 0) {
-            display_time(race.winner_time_ms, true);  /* MM:SS */
-        } else {
-            display_done();
-        }
+        display_time(race.winner_time_ms, true);
         break;
 
     case RACE_STATE_ERROR:

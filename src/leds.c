@@ -8,6 +8,7 @@
 #include <zephyr/logging/log.h>
 
 #include "leds.h"
+#include "buttons.h"
 
 LOG_MODULE_REGISTER(leds, LOG_LEVEL_INF);
 
@@ -52,22 +53,27 @@ static void blink_work_handler(struct k_work *work)
     k_work_reschedule(&blink_work, K_MSEC(delay));
 }
 
-/* Button LED blink work */
+/* Button LED blink work — supports blinking multiple LEDs via bitmask */
 static struct k_work_delayable btn_blink_work;
-static uint8_t btn_blink_index;
+static uint8_t btn_blink_mask;      /* bit 0 = LED 1, bit 1 = LED 2, etc. */
 static uint32_t btn_blink_on_ms;
 static uint32_t btn_blink_off_ms;
 static bool btn_blink_state;
 
 static void btn_blink_work_handler(struct k_work *work)
 {
-    if (btn_blink_index < 1 || btn_blink_index > NUM_BUTTON_LEDS) {
+    if (btn_blink_mask == 0) {
         return;
     }
 
     btn_blink_state = !btn_blink_state;
-    gpio_pin_set_dt(&button_led_specs[btn_blink_index - 1],
-                    btn_blink_state ? 1 : 0);
+    int val = btn_blink_state ? 1 : 0;
+
+    for (int i = 0; i < NUM_BUTTON_LEDS; i++) {
+        if (btn_blink_mask & BIT(i)) {
+            gpio_pin_set_dt(&button_led_specs[i], val);
+        }
+    }
 
     uint32_t delay = btn_blink_state ? btn_blink_on_ms : btn_blink_off_ms;
     k_work_reschedule(&btn_blink_work, K_MSEC(delay));
@@ -161,7 +167,22 @@ void leds_blink_button(uint8_t led_index, uint32_t on_ms, uint32_t off_ms)
 
     k_work_cancel_delayable(&btn_blink_work);
 
-    btn_blink_index = led_index;
+    btn_blink_mask = BIT(led_index - 1);
+    btn_blink_on_ms = on_ms;
+    btn_blink_off_ms = off_ms;
+    btn_blink_state = false;
+
+    k_work_reschedule(&btn_blink_work, K_NO_WAIT);
+}
+
+void leds_blink_all_buttons(uint32_t on_ms, uint32_t off_ms)
+{
+    k_work_cancel_delayable(&btn_blink_work);
+
+    btn_blink_mask = 0;
+    for (int i = 0; i < NUM_RACE_BUTTONS; i++) {
+        btn_blink_mask |= BIT(i);
+    }
     btn_blink_on_ms = on_ms;
     btn_blink_off_ms = off_ms;
     btn_blink_state = false;
@@ -172,9 +193,11 @@ void leds_blink_button(uint8_t led_index, uint32_t on_ms, uint32_t off_ms)
 void leds_stop_blink_button(void)
 {
     k_work_cancel_delayable(&btn_blink_work);
-    if (btn_blink_index >= 1 && btn_blink_index <= NUM_BUTTON_LEDS) {
-        gpio_pin_set_dt(&button_led_specs[btn_blink_index - 1], 0);
+    for (int i = 0; i < NUM_BUTTON_LEDS; i++) {
+        if (btn_blink_mask & BIT(i)) {
+            gpio_pin_set_dt(&button_led_specs[i], 0);
+        }
     }
-    btn_blink_index = 0;
+    btn_blink_mask = 0;
 }
 

@@ -70,7 +70,14 @@ void leds_status_blink(uint32_t on_ms, uint32_t off_ms, uint32_t count);
 void leds_blink_button(uint8_t led_index, uint32_t on_ms, uint32_t off_ms);
 
 /**
- * @brief Stop any ongoing button LED blink and turn the LED off.
+ * @brief Blink all race button LEDs (1-4) in unison (non-blocking, work queue).
+ * @param on_ms  On duration in milliseconds.
+ * @param off_ms Off duration in milliseconds.
+ */
+void leds_blink_all_buttons(uint32_t on_ms, uint32_t off_ms);
+
+/**
+ * @brief Stop any ongoing button LED blink and turn the LEDs off.
  */
 void leds_stop_blink_button(void);
 
