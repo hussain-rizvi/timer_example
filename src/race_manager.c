@@ -185,14 +185,9 @@ static void update_leds_for_state(void)
         break;
 
     case RACE_STATE_CONFIGURED:
-        /* Light up button LEDs for active lanes */
         leds_all_off();
-        if (race.mode == RACE_MODE_4_CONTESTANTS) {
-            for (int i = 1; i <= NUM_RACE_BUTTONS; i++) {
-                leds_set_button(i, true);
-            }
-        } else {
-            leds_set_button(1, true);  /* Only lane 1 active in single mode */
+        for (int i = 1; i <= NUM_RACE_BUTTONS; i++) {
+            leds_set_button(i, true);
         }
         leds_set_status(true);
         display_clear();
