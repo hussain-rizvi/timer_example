@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:www.mouser.com)",
+      "WebFetch(domain:www.tme.com)",
+      "WebFetch(domain:www.snapeda.com)"
+    ]
+  }
+}
