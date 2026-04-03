@@ -208,11 +208,10 @@ void display_time(uint32_t time_ms, bool show_minutes)
             minutes = 99;
         }
 
-        max7221_write(MAX7221_REG_DIGIT3, SEGMENT_FONT[minutes / 10]);
-        max7221_write(MAX7221_REG_DIGIT2, SEGMENT_FONT[minutes % 10]);
-        /* SEG_DP on DIGIT1 lights the colon — it shares DIG1 with the tens-of-seconds digit */
+        max7221_write(MAX7221_REG_DIGIT3, SEGMENT_FONT[minutes / 10] | SEG_DP);
+        max7221_write(MAX7221_REG_DIGIT2, SEGMENT_FONT[minutes % 10] | SEG_DP);
         max7221_write(MAX7221_REG_DIGIT1, SEGMENT_FONT[seconds / 10] | SEG_DP);
-        max7221_write(MAX7221_REG_DIGIT0, SEGMENT_FONT[seconds % 10]);
+        max7221_write(MAX7221_REG_DIGIT0, SEGMENT_FONT[seconds % 10] | SEG_DP);
 
         for (int i = 4; i < 8; i++) {
 
