@@ -1,15 +1,12 @@
 /*
  * Race Timer Implementation
  *
- * Uses Zephyr's kernel uptime for millisecond-resolution timing.
- * The nRF52840's k_uptime_get() is based on the RTC peripheral
- * which provides ~30.5µs resolution (32768 Hz clock).
- *
- * For the race timer application, millisecond resolution is more
- * than sufficient. Using kernel uptime avoids conflicts with
- * other peripherals that may use hardware timers.
+ * Uses Zephyr kernel uptime for elapsed-time measurement.
+ * The timer latches the last elapsed value when stopped so that reads after
+ * stop() remain stable instead of continuing to grow.
  */
 
+#include <stdint.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
@@ -17,12 +14,14 @@
 
 LOG_MODULE_REGISTER(race_timer, LOG_LEVEL_INF);
 
-static int64_t start_time;
+static int64_t start_time_ms;
+static uint32_t latched_elapsed_ms;
 static bool timer_running;
 
 int race_timer_init(void)
 {
-    start_time = 0;
+    start_time_ms = 0;
+    latched_elapsed_ms = 0;
     timer_running = false;
 
     LOG_INF("Race timer initialized");
@@ -31,22 +30,34 @@ int race_timer_init(void)
 
 void race_timer_start(void)
 {
-    start_time = k_uptime_get();
+    start_time_ms = k_uptime_get();
+    latched_elapsed_ms = 0;
     timer_running = true;
 
-    LOG_INF("Race timer started at %lld ms", start_time);
+    LOG_INF("Race timer started at %lld ms", start_time_ms);
 }
 
 void race_timer_stop(void)
 {
-    timer_running = false;
+    if (timer_running) {
+        int64_t now_ms = k_uptime_get();
+        int64_t elapsed_ms = now_ms - start_time_ms;
 
-    LOG_INF("Race timer stopped. Elapsed: %u ms", race_timer_get_ms());
+        if (elapsed_ms < 0) {
+            elapsed_ms = 0;
+        }
+
+        latched_elapsed_ms = (uint32_t)elapsed_ms;
+        timer_running = false;
+    }
+
+    LOG_INF("Race timer stopped. Elapsed: %u ms", latched_elapsed_ms);
 }
 
 void race_timer_reset(void)
 {
-    start_time = 0;
+    start_time_ms = 0;
+    latched_elapsed_ms = 0;
     timer_running = false;
 
     LOG_INF("Race timer reset");
@@ -54,25 +65,28 @@ void race_timer_reset(void)
 
 uint32_t race_timer_get_ms(void)
 {
-    if (start_time == 0) {
-        return 0;
+    if (timer_running) {
+        int64_t now_ms = k_uptime_get();
+        int64_t elapsed_ms = now_ms - start_time_ms;
+
+        if (elapsed_ms < 0) {
+            return 0;
+        }
+
+        return (uint32_t)elapsed_ms;
     }
 
-    int64_t now = k_uptime_get();
-    int64_t elapsed = now - start_time;
-
-    return (uint32_t)elapsed;
+    return latched_elapsed_ms;
 }
 
 uint32_t race_timer_get_us(void)
 {
-    /* Zephyr's uptime is in milliseconds, so microsecond
-     * precision isn't truly available. Return ms * 1000. */
-    return race_timer_get_ms() * 1000;
+    /* The firmware's source clock is millisecond-based, so report the ms value
+     * in microseconds for API compatibility. */
+    return race_timer_get_ms() * 1000U;
 }
 
 bool race_timer_is_running(void)
 {
     return timer_running;
 }
-
