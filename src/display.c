@@ -73,7 +73,7 @@ static const uint8_t SEGMENT_FONT[] = {
  * can only appear on the second digit from the left. In the firmware's digit
  * mapping, digit indexes are written left-to-right as 3, 2, 1, 0.
  */
-#define DISPLAY_COLON_DIGIT_INDEX 2U
+#define DISPLAY_COLON_DIGIT_INDEX 1U
 
 static const struct device *spi_bus;
 static struct spi_config spi_cfg;
@@ -127,6 +127,24 @@ static int max7221_write_digit(uint8_t digit_index, uint8_t data)
 static int max7221_write_digits(const uint8_t digits[8])
 {
     int err;
+
+    /*
+     * Fix 4: Insert a guaranteed dark period before changing any digit.
+     * Write SEG_BLANK to every digit whose value is about to change, then
+     * write the real values in a second pass.  This eliminates the brief
+     * moment where the wrong segment pattern is driven into a newly-selected
+     * digit (the root cause of ghosting).
+     */
+    for (uint8_t i = 0; i < 8U; ++i) {
+        if (!digit_cache_valid[i] || digit_cache[i] != digits[i]) {
+            err = max7221_write(MAX7221_REG_DIGIT0 + i, SEG_BLANK);
+            if (err) {
+                return err;
+            }
+            /* Invalidate so the second pass always writes the real value. */
+            digit_cache_valid[i] = false;
+        }
+    }
 
     for (uint8_t i = 0; i < 8U; ++i) {
         err = max7221_write_digit(i, digits[i]);
@@ -238,8 +256,8 @@ void display_time(uint32_t time_ms, bool show_minutes)
         }
 
         digits[3] = SEGMENT_FONT[(minutes / 10U) % 10U];
-        digits[2] = SEGMENT_FONT[minutes % 10U] | SEG_DP;
-        digits[1] = SEGMENT_FONT[(seconds / 10U) % 10U];
+        digits[2] = SEGMENT_FONT[minutes % 10U];
+        digits[1] = SEGMENT_FONT[(seconds / 10U) % 10U] | SEG_DP;
         digits[0] = SEGMENT_FONT[seconds % 10U];
     } else {
         uint32_t total_centiseconds = time_ms / 10U;
@@ -247,8 +265,8 @@ void display_time(uint32_t time_ms, bool show_minutes)
         uint8_t centiseconds = (uint8_t)(total_centiseconds % 100U);
 
         digits[3] = SEGMENT_FONT[(seconds / 10U) % 10U];
-        digits[2] = SEGMENT_FONT[seconds % 10U] | SEG_DP;
-        digits[1] = SEGMENT_FONT[(centiseconds / 10U) % 10U];
+        digits[2] = SEGMENT_FONT[seconds % 10U];
+        digits[1] = SEGMENT_FONT[(centiseconds / 10U) % 10U] | SEG_DP;
         digits[0] = SEGMENT_FONT[centiseconds % 10U];
     }
 
