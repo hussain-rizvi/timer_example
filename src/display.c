@@ -46,7 +46,7 @@ LOG_MODULE_REGISTER(display, LOG_LEVEL_INF);
 
 /*
  * Raw segment font (no-decode mode).
- * Bit mapping: DP G F E D C B A  (bit 7 down to bit 0)
+ * Bit mapping: DP A B C D E F G  (bit 7 down to bit 0)
  */
 static const uint8_t SEGMENT_FONT[] = {
     0x7E,  /* 0 */
@@ -70,7 +70,7 @@ static const uint8_t SEGMENT_FONT[] = {
 
 /*
  * The schematic ties SEG_DP_OUT to DIG1_OUT only, so the colon/decimal-point
- * can only appear on the second digit from the left. In the firmware's digit
+ * can only appear on the third digit from the left. In the firmware's digit
  * mapping, digit indexes are written left-to-right as 3, 2, 1, 0.
  */
 #define DISPLAY_COLON_DIGIT_INDEX 1U
