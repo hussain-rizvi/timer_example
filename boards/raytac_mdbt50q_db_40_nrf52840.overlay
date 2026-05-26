@@ -78,6 +78,26 @@
             gpios = <&gpio0 6 GPIO_ACTIVE_HIGH>;
             label = "Status LED (Blue)";
         };
+
+        /* TLC5926 latch enable (LE/ED1) — pulse high to transfer shift
+         * register into output latches, then drop low to hold. */
+        display_le: display_le {
+            gpios = <&gpio0 24 GPIO_ACTIVE_HIGH>;
+            label = "TLC5926 LE (P0.24)";
+        };
+    };
+
+    /* TLC5926 output enable (OE/ED2) — active LOW. PWM duty cycle controls
+     * display brightness. PWM_POLARITY_INVERTED so brightness % == on-time %:
+     *   brightness 100% → OE held LOW  → outputs always enabled
+     *   brightness   0% → OE held HIGH → outputs always disabled */
+    display_pwmleds {
+        compatible = "pwm-leds";
+        status = "okay";
+        display_brightness: display_brightness {
+            pwms = <&pwm1 0 PWM_USEC(100) PWM_POLARITY_INVERTED>;
+            label = "Display brightness (TLC5926 OE, P0.25)";
+        };
     };
 
     /* ── Aliases ── */
@@ -108,6 +128,10 @@
         race-led4 = &led_btn5;     /* Race LED 4 → OUT_LED5 (P1.01, J6) */
         race-led5 = &led_btn1;     /* Manual Start/Stop LED → OUT_LED1 (P1.06, J2) */
         status-led = &led_status;
+
+        /* TLC5926 daisy-chain control */
+        display-le = &display_le;
+        display-brightness = &display_brightness;
     };
 };
 
@@ -151,23 +175,21 @@
     status = "disabled";
 };
 
-/* ── Reconfigure SPI1 for MAX7221 display ── */
-/* Override the default SPI1 pin configuration */
+/* ── Reconfigure SPI1 for TLC5926 daisy-chain ── */
+/* SCK  → P0.19 → TLC5926 CLK (shared by Seg A and Seg B in chain)
+ * MOSI → P0.21 → TLC5926 SDI (data into Seg B, daisy-chains into Seg A)
+ * MISO → P0.20 → TLC5926 SDO loop-back (declared but not used in code)
+ * No CS — TLC5926 uses the LE pin (separate GPIO, see display_le above)
+ * to latch shifted data into outputs. */
 &spi1 {
     compatible = "nordic,nrf-spim";
     status = "okay";
     pinctrl-0 = <&spi1_custom_default>;
     pinctrl-1 = <&spi1_custom_sleep>;
     pinctrl-names = "default", "sleep";
-    cs-gpios = <&gpio0 25 GPIO_ACTIVE_LOW>;
 };
 
 &pinctrl {
-    /* Override SPI1 pins for MAX7221:
-     *   SCK  → P0.19 → LSF0204 → MAX7221 CLK
-     *   MOSI → P0.21 → LSF0204 → MAX7221 DIN
-     *   (MISO not connected - MAX7221 is write-only from MCU perspective)
-     */
     spi1_custom_default: spi1_custom_default {
         group1 {
             psels = <NRF_PSEL(SPIM_SCK, 0, 19)>,
@@ -178,6 +200,28 @@
         group1 {
             psels = <NRF_PSEL(SPIM_SCK, 0, 19)>,
                     <NRF_PSEL(SPIM_MOSI, 0, 21)>;
+            low-power-enable;
+        };
+    };
+};
+
+/* ── PWM1 channel 0 on P0.25 → TLC5926 OE for brightness control ── */
+&pwm1 {
+    status = "okay";
+    pinctrl-0 = <&pwm1_default>;
+    pinctrl-1 = <&pwm1_sleep>;
+    pinctrl-names = "default", "sleep";
+};
+
+&pinctrl {
+    pwm1_default: pwm1_default {
+        group1 {
+            psels = <NRF_PSEL(PWM_OUT0, 0, 25)>;
+        };
+    };
+    pwm1_sleep: pwm1_sleep {
+        group1 {
+            psels = <NRF_PSEL(PWM_OUT0, 0, 25)>;
             low-power-enable;
         };
     };

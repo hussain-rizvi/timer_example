@@ -136,7 +136,7 @@ int race_manager_init(void)
     k_work_init_delayable(&error_blink_done_work, error_blink_done_handler);
 
     buttons_enable();
-    display_time(0U, true);
+    display_time(0U);
     leds_set_status(false);
     leds_status_blink(200U, 800U, 0U);
 
@@ -179,13 +179,13 @@ static void update_leds_for_state(void)
     case RACE_STATE_DISCONNECTED:
         leds_all_off();
         leds_status_blink(200U, 800U, 0U);
-        display_time(0U, true);
+        display_time(0U);
         break;
 
     case RACE_STATE_IDLE:
         leds_all_off();
         leds_set_status(true);
-        display_time(0U, true);
+        display_time(0U);
         break;
 
     case RACE_STATE_CONFIGURED:
@@ -194,7 +194,7 @@ static void update_leds_for_state(void)
             leds_set_button(i, true);
         }
         leds_set_status(true);
-        display_time(0U, true);
+        display_time(0U);
         break;
 
     case RACE_STATE_RUNNING:
@@ -210,13 +210,13 @@ static void update_leds_for_state(void)
             leds_blink_button(race.winner_button, 300U, 300U);
         }
         leds_set_status(true);
-        display_time(race.winner_time_ms, true);
+        display_time(race.winner_time_ms);
         break;
 
     case RACE_STATE_ERROR:
         leds_all_off();
         leds_status_blink(100U, 100U, 10U);
-        display_time(0U, true);
+        display_time(0U);
         k_work_reschedule(&error_blink_done_work, K_MSEC(ERROR_BLINK_DURATION_MS));
         break;
     }
@@ -581,7 +581,7 @@ static void display_update_handler(struct k_work *work)
         return;
     }
 
-    display_time(race_timer_get_ms(), true);
+    display_time(race_timer_get_ms());
     k_work_reschedule(&display_update_work, K_MSEC(DISPLAY_UPDATE_INTERVAL_MS));
 }
 
